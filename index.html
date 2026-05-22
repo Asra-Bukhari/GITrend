@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GITrend — GitHub Trending Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #00ff41;
+    --green-dim: #00cc33;
+    --green-muted: #00882299;
+    --bg: #0a0e0a;
+    --bg-panel: #0d120d;
+    --bg-hover: #111811;
+    --border: #1a2e1a;
+    --text: #c8ffc8;
+    --text-dim: #5a8a5a;
+    --text-muted: #3a5a3a;
+    --yellow: #ffd700;
+    --cyan: #00ffff;
+    --red: #ff4444;
+    --orange: #ff8c00;
+    --purple: #cc88ff;
+    --pink: #ff69b4;
+    --blue: #44aaff;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .terminal {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-panel);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .dot-red { background: #ff5f57; }
+  .dot-yellow { background: #ffbd2e; }
+  .dot-green { background: #28ca41; }
+
+  .header-title {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 14px;
+    margin-left: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-right {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  /* Main panel */
+  .panel {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    padding: 16px;
+  }
+
+  /* Prompt line */
+  .prompt-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .prompt-symbol {
+    color: var(--green);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .cmd-part { color: var(--cyan); font-weight: 500; }
+  .cmd-flag { color: var(--yellow); }
+  .cmd-val  { color: var(--text); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    background: #080c08;
+  }
+
+  .ctl-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ctl-label {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  select, input[type="number"] {
+    background: #0d120d;
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 8px;
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  select:hover, input:hover { border-color: var(--green-dim); }
+  select:focus, input:focus { border-color: var(--green); box-shadow: 0 0 0 1px var(--green-muted); }
+
+  input[type="number"] { width: 52px; text-align: center; }
+
+  .run-btn {
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 16px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: background 0.1s, box-shadow 0.1s;
+    margin-left: auto;
+  }
+
+  .run-btn:hover { background: #002200; box-shadow: 0 0 8px var(--green-muted); }
+  .run-btn:active { background: #003300; }
+
+  /* Tab bar */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab {
+    padding: 6px 16px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    border-bottom: none;
+    margin-bottom: -1px;
+    transition: color 0.15s;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    color: var(--green);
+    border-color: var(--border);
+    background: var(--bg-panel);
+  }
+
+  /* Output area */
+  .output {
+    margin-top: 0;
+    border: 1px solid var(--border);
+    border-top: none;
+    padding: 12px;
+    min-height: 360px;
+    background: #080c08;
+  }
+
+  .output-line {
+    display: flex;
+    align-items: center;
+    padding: 5px 6px;
+    border-bottom: 1px solid #0f180f;
+    gap: 0;
+    cursor: default;
+    transition: background 0.1s;
+    animation: fadein 0.15s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadein { to { opacity: 1; } }
+
+  .output-line:hover { background: var(--bg-hover); }
+
+  .col-num  { width: 32px; color: var(--text-muted); text-align: right; padding-right: 12px; flex-shrink: 0; font-size: 11px; }
+  .col-repo { flex: 1; min-width: 0; }
+  .col-repo a { color: var(--cyan); text-decoration: none; font-weight: 500; }
+  .col-repo a:hover { text-decoration: underline; }
+  .col-lang { width: 100px; flex-shrink: 0; }
+  .col-stars { width: 72px; flex-shrink: 0; text-align: right; color: var(--yellow); padding-right: 12px; }
+  .col-forks { width: 64px; flex-shrink: 0; text-align: right; color: var(--text-dim); padding-right: 12px; }
+  .col-bar   { width: 120px; flex-shrink: 0; }
+  .col-when  { width: 80px; flex-shrink: 0; text-align: right; color: var(--text-muted); font-size: 11px; }
+
+  /* Table header */
+  .tbl-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--green-dim);
+    margin-bottom: 4px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--green-dim);
+    gap: 0;
+  }
+
+  /* Bar */
+  .bar-wrap { height: 10px; background: #111; border: 1px solid #1a2e1a; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--green); transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+  /* Stats view */
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+    border-bottom: 1px solid #0f180f;
+    animation: fadein 0.15s ease forwards;
+    opacity: 0;
+  }
+
+  .stat-lang { width: 120px; flex-shrink: 0; font-weight: 500; }
+  .stat-count { width: 32px; flex-shrink: 0; text-align: right; color: var(--text-dim); font-size: 11px; }
+  .stat-bar-wrap { flex: 1; height: 14px; background: #111; border: 1px solid #1a2e1a; overflow: hidden; }
+  .stat-bar-fill { height: 100%; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
+  .stat-pct { width: 36px; flex-shrink: 0; text-align: right; color: var(--text-muted); font-size: 11px; }
+  .stat-stars { width: 72px; flex-shrink: 0; text-align: right; color: var(--yellow); font-size: 11px; }
+
+  /* Detail view */
+  .detail-block { padding: 8px 0; border-bottom: 1px solid #0f180f; }
+  .detail-key { color: var(--text-dim); display: inline-block; width: 130px; }
+  .detail-val { color: var(--text); }
+  .detail-desc { color: var(--green-dim); padding: 8px 0 12px; font-style: italic; }
+  .detail-input { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .detail-input input {
+    flex: 1; background: #080c08; border: 1px solid var(--border);
+    color: var(--green); font-family: inherit; font-size: 12px;
+    padding: 5px 10px; outline: none; width: auto;
+  }
+  .detail-input input:focus { border-color: var(--green); }
+  .detail-input input::placeholder { color: var(--text-muted); }
+
+  /* Spinner / status */
+  .status-line {
+    color: var(--text-dim);
+    padding: 16px 0;
+    font-size: 12px;
+  }
+
+  .blink {
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .error-line { color: var(--red); padding: 8px 0; }
+  .info-line  { color: var(--text-dim); font-size: 11px; padding: 4px 0; }
+  .sep-line   { color: var(--border); padding: 4px 0; letter-spacing: 2px; }
+
+  /* Topics */
+  .topic {
+    display: inline-block;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 1px 8px;
+    font-size: 10px;
+    margin: 2px 2px 2px 0;
+    letter-spacing: 1px;
+  }
+
+  /* Footer */
+  .footer {
+    border: 1px solid var(--border);
+    border-top: none;
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 1px;
+    background: var(--bg-panel);
+  }
+
+  .footer span { color: var(--green-dim); }
+
+  /* Rate limit warning */
+  .rate-warn {
+    padding: 6px 10px;
+    border: 1px solid #2a1a00;
+    background: #1a0e00;
+    color: var(--orange);
+    font-size: 11px;
+    margin-bottom: 10px;
+  }
+
+  /* Detail topic pills */
+  .topics-wrap { margin-top: 4px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #080c08; }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="terminal">
+
+  <div class="header">
+    <div class="header-left">
+      <span class="dot dot-red"></span>
+      <span class="dot dot-yellow"></span>
+      <span class="dot dot-green"></span>
+      <span class="header-title">GITrend</span>
+    </div>
+    <div class="header-right">github trending explorer v1.0.0</div>
+  </div>
+
+  <div class="panel">
+
+    <div class="controls">
+      <div class="ctl-group">
+        <span class="ctl-label">--lang</span>
+        <select id="lang">
+          <option value="">all</option>
+          <option value="python">python</option>
+          <option value="javascript">javascript</option>
+          <option value="typescript">typescript</option>
+          <option value="rust">rust</option>
+          <option value="go">go</option>
+          <option value="java">java</option>
+          <option value="c">c</option>
+          <option value="c++">c++</option>
+          <option value="swift">swift</option>
+          <option value="kotlin">kotlin</option>
+          <option value="ruby">ruby</option>
+          <option value="php">php</option>
+          <option value="shell">shell</option>
+          <option value="dart">dart</option>
+          <option value="scala">scala</option>
+          <option value="r">r</option>
+          <option value="elixir">elixir</option>
+          <option value="haskell">haskell</option>
+        </select>
+      </div>
+
+      <div class="ctl-group">
+        <span class="ctl-label">--period</span>
+        <select id="period">
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+          <option value="monthly">monthly</option>
+        </select>
+      </div>
+
+      <div class="ctl-group">
+        <span class="ctl-label">--limit</span>
+        <input type="number" id="limit" min="1" max="25" value="10">
+      </div>
+
+      <button class="run-btn" onclick="runTrending()">▶ RUN</button>
+    </div>
+
+    <div class="prompt-area" id="prompt-display">
+      <span class="prompt-symbol">$</span>
+      <span class="cmd-part">gitrend</span>
+      <span class="cmd-flag">--period</span>
+      <span class="cmd-val">daily</span>
+      <span class="cmd-flag">--limit</span>
+      <span class="cmd-val">10</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-trend" onclick="switchTab('trend')">trending</div>
+      <div class="tab" id="tab-stats" onclick="switchTab('stats')">stats</div>
+      <div class="tab" id="tab-detail" onclick="switchTab('detail')">inspect</div>
+    </div>
+
+    <div class="output" id="output">
+      <div class="status-line">$ type a command above and press RUN<span class="blink">_</span></div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <div>github.com/search/repositories  ·  public api  ·  no key required</div>
+    <div>cache: <span id="cache-status">—</span></div>
+  </div>
+
+</div>
+
+<script>
+const CACHE = {};
+const CACHE_TTL = 15 * 60 * 1000;
+
+let currentTab = 'trend';
+
+const langColors = {
+  python: '#3a9', javascript: '#dd0', typescript: '#08f',
+  rust: '#f63', go: '#0cf', java: '#f44', 'c++': '#c6f',
+  c: '#aaa', ruby: '#f55', swift: '#f80', kotlin: '#c8f',
+  shell: '#4d4', dart: '#0bc', scala: '#f44', r: '#27e',
+  elixir: '#88f', haskell: '#9af', php: '#77f'
+};
+
+function langColor(lang) {
+  return langColors[(lang||'').toLowerCase()] || '#5a8a5a';
+}
+
+function fmtNum(n) {
+  if (!n) return '0';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return String(n);
+}
+
+function daysAgo(iso) {
+  if (!iso) return '—';
+  const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  if (d === 0) return 'today';
+  if (d === 1) return '1d ago';
+  return d+'d ago';
+}
+
+function updatePrompt() {
+  const lang   = document.getElementById('lang').value;
+  const period = document.getElementById('period').value;
+  const limit  = document.getElementById('limit').value;
+  const tab    = currentTab;
+
+  let html = `<span class="prompt-symbol">$</span> <span class="cmd-part">gitrend</span>`;
+  if (tab === 'trend' || tab === 'stats') {
+    if (lang) html += ` <span class="cmd-flag">--lang</span> <span class="cmd-val">${lang}</span>`;
+    html += ` <span class="cmd-flag">--period</span> <span class="cmd-val">${period}</span>`;
+    if (tab === 'trend') html += ` <span class="cmd-flag">--limit</span> <span class="cmd-val">${limit}</span>`;
+    if (tab === 'stats') html += ` <span class="cmd-flag">--stats</span>`;
+  } else {
+    const val = document.getElementById('detail-repo-input')?.value || 'owner/repo';
+    html += ` <span class="cmd-flag">--detail</span> <span class="cmd-val">${val}</span>`;
+  }
+  document.getElementById('prompt-display').innerHTML = html;
+}
+
+['lang','period','limit'].forEach(id => {
+  document.getElementById(id).addEventListener('change', updatePrompt);
+});
+
+function switchTab(tab) {
+  currentTab = tab;
+  ['trend','stats','detail'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+  });
+
+  if (tab === 'detail') {
+    document.getElementById('output').innerHTML = `
+      <div class="detail-input">
+        <span class="prompt-symbol">$</span>
+        <span class="cmd-part" style="flex-shrink:0">gitrend --detail</span>
+        <input type="text" id="detail-repo-input" placeholder="owner/repo  (e.g. torvalds/linux)" oninput="updatePrompt()" onkeydown="if(event.key==='Enter')runDetail()">
+        <button class="run-btn" onclick="runDetail()">▶ GO</button>
+      </div>
+      <div class="status-line" style="margin-top:16px">enter a repo name above and press GO<span class="blink">_</span></div>
+    `;
+  }
+  updatePrompt();
+}
+
+async function apiFetch(url, cacheKey) {
+  if (CACHE[cacheKey] && Date.now() - CACHE[cacheKey].ts < CACHE_TTL) {
+    document.getElementById('cache-status').textContent = 'HIT ✓';
+    return CACHE[cacheKey].data;
+  }
+  document.getElementById('cache-status').textContent = 'MISS';
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
+  });
+  if (res.status === 403) {
+    const reset = res.headers.get('X-RateLimit-Reset');
+    const t = reset ? new Date(reset*1000).toLocaleTimeString() : 'soon';
+    throw new Error(`rate limit hit — resets at ${t}. Add GITHUB_TOKEN if running locally.`);
+  }
+  if (res.status === 404) throw new Error('repository not found');
+  if (!res.ok) throw new Error(`github api error ${res.status}`);
+  const data = await res.json();
+  CACHE[cacheKey] = { ts: Date.now(), data };
+  document.getElementById('cache-status').textContent = 'STORED';
+  return data;
+}
+
+function setLoading(msg) {
+  document.getElementById('output').innerHTML =
+    `<div class="status-line">${msg}<span class="blink">_</span></div>`;
+}
+
+function setError(msg) {
+  document.getElementById('output').innerHTML =
+    `<div class="error-line">✗ error: ${msg}</div>
+     <div class="info-line" style="margin-top:8px">check your input and try again</div>`;
+}
+
+async function runTrending() {
+  const lang   = document.getElementById('lang').value;
+  const period = document.getElementById('period').value;
+  const limit  = parseInt(document.getElementById('limit').value) || 10;
+
+  if (limit < 1 || limit > 25) { setError('--limit must be 1–25'); return; }
+  if (currentTab !== 'trend') { switchTab('trend'); }
+  updatePrompt();
+
+  const days = { daily: 1, weekly: 7, monthly: 30 }[period];
+  const since = new Date(Date.now() - days*86400000).toISOString().split('T')[0];
+  let q = `pushed:>${since}`;
+  if (lang) q += ` language:${lang}`;
+
+  const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=${limit}`;
+  const key = `trend_${lang}_${period}_${limit}`;
+
+  setLoading(`fetching trending ${lang||'all'} repos (${period})...`);
+
+  try {
+    const data = await apiFetch(url, key);
+    renderTrending(data.items || [], lang, period);
+  } catch(e) {
+    setError(e.message);
+  }
+}
+
+function renderTrending(repos, lang, period) {
+  if (!repos.length) {
+    document.getElementById('output').innerHTML =
+      `<div class="status-line">no results found for that filter</div>`;
+    return;
+  }
+
+  const maxStars = Math.max(...repos.map(r => r.stargazers_count || 0), 1);
+  const periodLabel = {daily:'today',weekly:'this week',monthly:'this month'}[period] || period;
+
+  let html = `
+    <div class="info-line">
+      ▸ ${repos.length} repos · ${lang || 'all languages'} · ${periodLabel}
+    </div>
+    <div class="sep-line">──────────────────────────────────────────────────────────────────────────</div>
+    <div class="tbl-header">
+      <div class="col-num">#</div>
+      <div class="col-repo">repository</div>
+      <div class="col-lang">language</div>
+      <div class="col-stars">stars</div>
+      <div class="col-forks">forks</div>
+      <div class="col-bar">trend</div>
+      <div class="col-when">pushed</div>
+    </div>
+  `;
+
+  repos.forEach((r, i) => {
+    const pct = Math.round((r.stargazers_count / maxStars) * 100);
+    const lang2 = r.language || '—';
+    const color = langColor(lang2);
+    const delay = i * 40;
+
+    html += `
+      <div class="output-line" style="animation-delay:${delay}ms" onclick="inspectRepo('${r.full_name}')">
+        <div class="col-num">${i+1}</div>
+        <div class="col-repo">
+          <a href="https://github.com/${r.full_name}" target="_blank" onclick="event.stopPropagation()">${r.full_name}</a>
+        </div>
+        <div class="col-lang" style="color:${color}">${lang2}</div>
+        <div class="col-stars">⭐ ${fmtNum(r.stargazers_count)}</div>
+        <div class="col-forks">${fmtNum(r.forks_count)}</div>
+        <div class="col-bar">
+          <div class="bar-wrap">
+            <div class="bar-fill" style="width:0%" data-pct="${pct}"></div>
+          </div>
+        </div>
+        <div class="col-when">${daysAgo(r.pushed_at)}</div>
+      </div>
+    `;
+  });
+
+  html += `<div class="info-line" style="margin-top:10px">▸ click any row to inspect · click repo link to open github</div>`;
+  document.getElementById('output').innerHTML = html;
+
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.bar-fill').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+  }, 100);
+}
+
+async function runStats() {
+  if (currentTab !== 'stats') switchTab('stats');
+  const lang   = document.getElementById('lang').value;
+  const period = document.getElementById('period').value;
+  updatePrompt();
+
+  const days = { daily: 1, weekly: 7, monthly: 30 }[period];
+  const since = new Date(Date.now() - days*86400000).toISOString().split('T')[0];
+  let q = `pushed:>${since}`;
+  if (lang) q += ` language:${lang}`;
+
+  const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=25`;
+  const key = `stats_${lang}_${period}`;
+
+  setLoading('computing language distribution...');
+
+  try {
+    const data = await apiFetch(url, key);
+    renderStats(data.items || [], period);
+  } catch(e) {
+    setError(e.message);
+  }
+}
+
+function renderStats(repos, period) {
+  const counts = {}, stars = {};
+  repos.forEach(r => {
+    const l = r.language || 'Unknown';
+    counts[l] = (counts[l]||0) + 1;
+    stars[l]  = (stars[l]||0)  + (r.stargazers_count||0);
+  });
+
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
+  const total  = repos.length;
+  const maxCount = sorted[0]?.[1] || 1;
+  const periodLabel = {daily:'today',weekly:'this week',monthly:'this month'}[period]||period;
+
+  let html = `
+    <div class="info-line">▸ language breakdown · ${total} repos · ${periodLabel}</div>
+    <div class="sep-line">──────────────────────────────────────────────────────────────────────────</div>
+    <div style="display:flex;gap:10px;padding:4px;font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);margin-bottom:4px">
+      <div style="width:120px">language</div>
+      <div style="width:32px;text-align:right">n</div>
+      <div style="flex:1">distribution</div>
+      <div style="width:36px;text-align:right">%</div>
+      <div style="width:72px;text-align:right">stars</div>
+    </div>
+  `;
+
+  sorted.forEach(([lang, count], i) => {
+    const pct  = Math.round(count/total*100);
+    const bpct = Math.round(count/maxCount*100);
+    const color = langColor(lang);
+    html += `
+      <div class="stat-row" style="animation-delay:${i*50}ms">
+        <div class="stat-lang" style="color:${color}">${lang}</div>
+        <div class="stat-count">${count}</div>
+        <div class="stat-bar-wrap">
+          <div class="stat-bar-fill" style="width:0%;background:${color}" data-pct="${bpct}"></div>
+        </div>
+        <div class="stat-pct">${pct}%</div>
+        <div class="stat-stars">⭐ ${fmtNum(stars[lang])}</div>
+      </div>
+    `;
+  });
+
+  document.getElementById('output').innerHTML = html;
+
+  setTimeout(() => {
+    document.querySelectorAll('.stat-bar-fill').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+  }, 100);
+}
+
+function inspectRepo(fullName) {
+  switchTab('detail');
+  document.getElementById('detail-repo-input').value = fullName;
+  updatePrompt();
+  runDetail();
+}
+
+async function runDetail() {
+  const input = document.getElementById('detail-repo-input');
+  if (!input) return;
+  const val = input.value.trim();
+
+  if (!val) { setError('enter owner/repo (e.g. torvalds/linux)'); return; }
+  if (!val.includes('/')) { setError('format must be owner/repo'); return; }
+
+  const parts = val.split('/').filter(Boolean);
+  if (parts.length !== 2) { setError('format must be owner/repo'); return; }
+
+  updatePrompt();
+  const out = document.getElementById('output');
+
+  // Keep the input row
+  const inputRow = out.querySelector('.detail-input')?.outerHTML || '';
+  out.innerHTML = inputRow + `<div class="status-line" style="margin-top:16px">fetching ${val}...<span class="blink">_</span></div>`;
+
+  const url = `https://api.github.com/repos/${val}`;
+  const key = `repo_${val.toLowerCase()}`;
+
+  try {
+    const r = await apiFetch(url, key);
+    renderDetail(r, inputRow);
+  } catch(e) {
+    out.innerHTML = inputRow + `<div class="error-line" style="margin-top:12px">✗ ${e.message}</div>`;
+  }
+}
+
+function renderDetail(r, inputRow) {
+  const lang = r.language || '—';
+  const color = langColor(lang);
+  const topics = (r.topics || []).slice(0,10);
+  const license = r.license?.name || '—';
+  const homepageHtml = r.homepage
+    ? `<a href="${r.homepage}" target="_blank" style="color:var(--cyan)">${r.homepage}</a>`
+    : '—';
+
+  let html = inputRow + `
+    <div style="margin-top:12px">
+    <div class="sep-line">──────────────────────────────────────────────────────────────────────────</div>
+
+    <div class="detail-desc"># ${r.description || 'no description'}</div>
+
+    <div class="detail-block">
+      <span class="detail-key">repo</span>
+      <span class="detail-val"><a href="${r.html_url}" target="_blank" style="color:var(--cyan)">${r.full_name}</a></span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">language</span>
+      <span class="detail-val" style="color:${color}">${lang}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">stars</span>
+      <span class="detail-val" style="color:var(--yellow)">⭐ ${fmtNum(r.stargazers_count)}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">forks</span>
+      <span class="detail-val">${fmtNum(r.forks_count)}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">open issues</span>
+      <span class="detail-val" style="color:var(--red)">${r.open_issues_count}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">watchers</span>
+      <span class="detail-val">${fmtNum(r.watchers_count)}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">license</span>
+      <span class="detail-val">${license}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">default branch</span>
+      <span class="detail-val">${r.default_branch}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">created</span>
+      <span class="detail-val">${r.created_at?.split('T')[0] || '—'}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">last pushed</span>
+      <span class="detail-val">${daysAgo(r.pushed_at)}</span>
+    </div>
+    <div class="detail-block">
+      <span class="detail-key">homepage</span>
+      <span class="detail-val">${homepageHtml}</span>
+    </div>
+  `;
+
+  if (topics.length) {
+    html += `<div class="detail-block">
+      <span class="detail-key">topics</span>
+      <span class="detail-val">
+        ${topics.map(t => `<span class="topic">${t}</span>`).join('')}
+      </span>
+    </div>`;
+  }
+
+  html += `
+    <div class="sep-line" style="margin-top:12px">──────────────────────────────────────────────────────────────────────────</div>
+    <div class="info-line">▸ click a repo in trending view to inspect it here</div>
+    </div>
+  `;
+
+  document.getElementById('output').innerHTML = html;
+}
+
+// Wire stats tab
+document.getElementById('tab-stats').addEventListener('click', () => {
+  switchTab('stats');
+  runStats();
+});
+
+// Initial load
+window.addEventListener('load', () => {
+  updatePrompt();
+  runTrending();
+});
+</script>
+</body>
+</html>
