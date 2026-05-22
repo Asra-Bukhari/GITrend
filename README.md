@@ -1,18 +1,41 @@
-# 🚀 Dev Pulse — GitHub Trending Explorer
+# GITrend — GitHub Trending Explorer
 
 A CLI tool to explore trending GitHub repositories with rich terminal visuals.
 Filter by language, time period, see language stats, and inspect any repo — all from your terminal.
+
+🌐 **Live Web Demo → [asra-bukhari.github.io/GITrend](https://asra-bukhari.github.io/GITrend/)**
+
+---
+
+## Screenshots
+
+### Trending today (all languages)
+![Trending today](screenshots/trending_today.png)
+
+### Python repos
+![Python repos](screenshots/python_repos.png)
+
+### Top 5 Rust repos this week
+![Top 5 Rust](screenshots/top5_rust.png)
+
+### Language stats chart
+![Language chart](screenshots/language_chart.png)
+
+### Repo detail view
+![Repo detail](screenshots/repo_detail.png)
 
 ---
 
 ## Folder Structure
 
 ```
-dev-pulse/
+GITrend/
 ├── main.py            # CLI entry point (argparse)
 ├── github_client.py   # GitHub API wrapper (retries, caching, error handling)
 ├── display.py         # Rich terminal visuals (tables, bars, charts)
 ├── requirements.txt   # Dependencies
+├── index.html         # Web version (live demo)
+├── screenshots/       # Sample output screenshots
 ├── .cache.json        # Auto-generated local cache (gitignored)
 └── README.md
 ```
@@ -21,11 +44,11 @@ dev-pulse/
 
 ## Setup & Run (Fresh Machine)
 
-### 1. Clone / download the project
+### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/dev-pulse.git
-cd dev-pulse
+git clone https://github.com/asra-bukhari/GITrend.git
+cd GITrend
 ```
 
 ### 2. Create a virtual environment (recommended)
@@ -46,9 +69,15 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. (Optional) Set a GitHub token for higher rate limits
+### 4. Run it
 
-Without a token, GitHub allows ~10 unauthenticated requests/minute.  
+```bash
+python main.py
+```
+
+### 5. (Optional) Set a GitHub token for higher rate limits
+
+Without a token, GitHub allows ~10 unauthenticated requests/minute.
 With a free token, you get 30x more headroom.
 
 1. Go to https://github.com/settings/tokens → "Generate new token (classic)"
@@ -77,14 +106,14 @@ python main.py -l python
 # Change time period (daily / weekly / monthly)
 python main.py -l javascript -p weekly
 
-# Show top 5 Rust repos this month
-python main.py -l rust -p monthly -n 5
+# Top 5 Rust repos this week
+python main.py -l rust -p weekly -n 5
 
 # Language breakdown chart of today's trending
 python main.py --stats
 
 # Detailed info for a specific repo
-python main.py --detail torvalds/linux
+python main.py --detail astral-sh/uv
 ```
 
 ### All options
