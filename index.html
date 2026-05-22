@@ -356,6 +356,67 @@
   ::-webkit-scrollbar-track { background: #080c08; }
   ::-webkit-scrollbar-thumb { background: var(--border); }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ── Mobile ─────────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .terminal { padding: 8px; }
+    .header-right { display: none; }
+    .panel { padding: 10px; }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 10px;
+    }
+    .ctl-group { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .ctl-label { font-size: 10px; }
+    select, input[type="number"] { width: 100%; font-size: 13px; padding: 6px 8px; }
+    .run-btn { grid-column: 1 / -1; margin-left: 0; width: 100%; padding: 8px; font-size: 13px; }
+
+    .prompt-area { font-size: 11px; margin-bottom: 10px; flex-wrap: wrap; }
+    .tab { padding: 6px 10px; font-size: 10px; letter-spacing: 0; }
+
+    /* Trending — switch from row to card layout */
+    .tbl-header { display: none; }
+    .output-line {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 10px 8px;
+      gap: 3px;
+    }
+    .col-num   { display: none; }
+    .col-repo  { width: 100%; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .col-lang  { width: auto; font-size: 11px; order: 2; }
+    .col-stars { width: auto; padding-right: 0; font-size: 12px; order: 2; }
+    .col-forks { width: auto; padding-right: 0; font-size: 11px; order: 2; }
+    .col-when  { width: auto; font-size: 10px; order: 2; }
+    .col-bar   { width: 100%; order: 3; margin-top: 4px; }
+
+    /* Put lang + stars + forks + when on one line */
+    .output-line { position: relative; }
+    .col-lang, .col-stars, .col-forks, .col-when { display: inline; }
+
+    /* Stats mobile */
+    .stat-row { flex-wrap: wrap; gap: 4px; }
+    .stat-lang { width: 90px; font-size: 12px; }
+    .stat-count { width: 20px; font-size: 11px; }
+    .stat-pct { width: 28px; font-size: 11px; }
+    .stat-stars { width: 52px; font-size: 11px; }
+    .stat-bar-wrap { flex-basis: 100%; order: 10; height: 10px; }
+
+    /* Detail mobile */
+    .detail-block { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
+    .detail-key { width: 100%; font-size: 11px; }
+    .detail-val { font-size: 12px; word-break: break-all; }
+    .detail-input { flex-wrap: wrap; }
+    .detail-input .cmd-part { font-size: 11px; }
+    .detail-input input { min-width: 0; font-size: 12px; }
+    .detail-input .run-btn { width: 100%; margin-left: 0; margin-top: 4px; }
+
+    .footer { flex-direction: column; gap: 2px; font-size: 9px; padding: 6px 10px; }
+    .sep-line { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -606,29 +667,48 @@ function renderTrending(repos, lang, period) {
     </div>
   `;
 
+  const isMobile = window.innerWidth <= 640;
+
   repos.forEach((r, i) => {
     const pct = Math.round((r.stargazers_count / maxStars) * 100);
     const lang2 = r.language || '—';
     const color = langColor(lang2);
     const delay = i * 40;
 
-    html += `
-      <div class="output-line" style="animation-delay:${delay}ms" onclick="inspectRepo('${r.full_name}')">
-        <div class="col-num">${i+1}</div>
-        <div class="col-repo">
-          <a href="https://github.com/${r.full_name}" target="_blank" onclick="event.stopPropagation()">${r.full_name}</a>
-        </div>
-        <div class="col-lang" style="color:${color}">${lang2}</div>
-        <div class="col-stars">⭐ ${fmtNum(r.stargazers_count)}</div>
-        <div class="col-forks">${fmtNum(r.forks_count)}</div>
-        <div class="col-bar">
-          <div class="bar-wrap">
-            <div class="bar-fill" style="width:0%" data-pct="${pct}"></div>
+    if (isMobile) {
+      html += `
+        <div class="output-line" style="animation-delay:${delay}ms" onclick="inspectRepo('${r.full_name}')">
+          <div class="col-repo">
+            <a href="https://github.com/${r.full_name}" target="_blank" onclick="event.stopPropagation()">${r.full_name}</a>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;margin-top:2px">
+            <span style="color:${color};font-size:11px">${lang2}</span>
+            <span style="color:var(--yellow);font-size:11px">⭐ ${fmtNum(r.stargazers_count)}</span>
+            <span style="color:var(--text-dim);font-size:11px">🍴 ${fmtNum(r.forks_count)}</span>
+            <span style="color:var(--text-muted);font-size:10px">${daysAgo(r.pushed_at)}</span>
+          </div>
+          <div class="col-bar" style="width:100%;margin-top:4px">
+            <div class="bar-wrap"><div class="bar-fill" style="width:0%" data-pct="${pct}"></div></div>
           </div>
         </div>
-        <div class="col-when">${daysAgo(r.pushed_at)}</div>
-      </div>
-    `;
+      `;
+    } else {
+      html += `
+        <div class="output-line" style="animation-delay:${delay}ms" onclick="inspectRepo('${r.full_name}')">
+          <div class="col-num">${i+1}</div>
+          <div class="col-repo">
+            <a href="https://github.com/${r.full_name}" target="_blank" onclick="event.stopPropagation()">${r.full_name}</a>
+          </div>
+          <div class="col-lang" style="color:${color}">${lang2}</div>
+          <div class="col-stars">⭐ ${fmtNum(r.stargazers_count)}</div>
+          <div class="col-forks">${fmtNum(r.forks_count)}</div>
+          <div class="col-bar">
+            <div class="bar-wrap"><div class="bar-fill" style="width:0%" data-pct="${pct}"></div></div>
+          </div>
+          <div class="col-when">${daysAgo(r.pushed_at)}</div>
+        </div>
+      `;
+    }
   });
 
   html += `<div class="info-line" style="margin-top:10px">▸ click any row to inspect · click repo link to open github</div>`;
